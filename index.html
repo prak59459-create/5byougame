@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5秒ぴったり STOP THE CLOCK</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c: #00f5c4;
+    --cr: #ff4060;
+    --cy: #ffd000;
+    --bg: #040d0f;
+    --panel: rgba(0,245,196,0.04);
+    --border: rgba(0,245,196,0.18);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,245,196,0.08) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,245,196,0.03) 39px, rgba(0,245,196,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,245,196,0.03) 39px, rgba(0,245,196,0.03) 40px);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    color: #c8f0ea;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    user-select: none;
+    overflow-x: hidden;
+  }
+
+  /* scanline overlay */
+  body::after {
+    content:'';
+    position:fixed; inset:0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    pointer-events:none; z-index:999;
+  }
+
+  h1 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(20px, 5vw, 32px);
+    letter-spacing: 6px;
+    color: var(--c);
+    text-shadow: 0 0 20px rgba(0,245,196,0.6);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 12px;
+    letter-spacing: 10px;
+    color: rgba(0,245,196,0.4);
+    text-align: center;
+    margin-bottom: 36px;
+    text-transform: uppercase;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px 44px;
+    width: min(100%, 460px);
+    box-shadow: 0 0 80px rgba(0,245,196,0.07), inset 0 1px 0 rgba(0,245,196,0.1);
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content:'';
+    position:absolute; top:0; left:0; right:0; height:1px;
+    background: linear-gradient(90deg, transparent, var(--c), transparent);
+    opacity: 0.5;
+  }
+
+  /* SCREENS */
+  .screen { display:none; text-align:center; }
+  .screen.active { display:block; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  /* IDLE */
+  .icon { font-size: 64px; margin-bottom: 16px; }
+  .desc { font-size: 15px; color: rgba(200,240,234,0.6); line-height: 1.8; margin-bottom: 32px; }
+  .desc strong { color: var(--c); font-size: 20px; }
+
+  /* COUNTDOWN */
+  .countdown-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 120px;
+    color: var(--c);
+    text-shadow: 0 0 60px rgba(0,245,196,0.8);
+    animation: popIn 0.35s cubic-bezier(0.17,0.89,0.32,1.28);
+    line-height: 1;
+  }
+  @keyframes popIn { from{transform:scale(2);opacity:0} to{transform:scale(1);opacity:1} }
+  .countdown-label { font-size:14px; color:rgba(200,240,234,0.4); letter-spacing:4px; margin-bottom:16px; }
+
+  /* RUNNING */
+  .run-label { font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:6px; color:rgba(0,245,196,0.5); margin-bottom:12px; }
+  #timerDisplay {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(40px, 10vw, 60px);
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #fff;
+    transition: color 0.1s;
+    margin-bottom: 8px;
+    text-shadow: 0 0 30px rgba(255,255,255,0.2);
+    display: block;
+  }
+  #timerDisplay.over { color: var(--cr); text-shadow: 0 0 30px rgba(255,64,96,0.5); }
+
+  /* PROGRESS BAR */
+  .progress-wrap { position:relative; margin: 20px 0 8px; }
+  .progress-track {
+    height: 10px;
+    background: rgba(0,245,196,0.06);
+    border-radius: 5px;
+    overflow: visible;
+    position: relative;
+    border: 1px solid rgba(0,245,196,0.1);
+  }
+  #progressFill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00c49a, var(--c));
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0,245,196,0.4);
+    transition: none;
+  }
+  #progressFill.over { background: linear-gradient(90deg, var(--cr), #ff8040); box-shadow: 0 0 10px rgba(255,64,96,0.4); }
+  .target-marker {
+    position: absolute;
+    top: -5px;
+    left: 50%; /* 5s / 10s = 50% */
+    transform: translateX(-50%);
+    width: 3px;
+    height: 20px;
+    background: var(--cy);
+    border-radius: 2px;
+    box-shadow: 0 0 8px var(--cy);
+  }
+  .target-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--cy);
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+
+  /* RESULT */
+  .result-emoji { font-size: 48px; margin-bottom: 8px; }
+  .result-grade { font-size: 22px; font-weight: 900; margin-bottom: 8px; }
+  .result-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(36px,8vw,52px);
+    font-weight: 900;
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+  }
+  .result-diff { font-size: 14px; color: rgba(200,240,234,0.5); margin-bottom: 4px; }
+  .result-diff span { font-weight: 700; }
+
+  /* SAVE FORM */
+  .save-form { margin-top: 24px; }
+  .save-label { font-size: 12px; color: rgba(200,240,234,0.4); letter-spacing:2px; margin-bottom: 10px; }
+  .save-row { display: flex; gap: 8px; }
+  .save-input {
+    flex: 1;
+    background: rgba(0,245,196,0.04);
+    border: 1px solid rgba(0,245,196,0.2);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: #fff;
+    font-size: 15px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .save-input:focus { border-color: var(--c); box-shadow: 0 0 0 2px rgba(0,245,196,0.1); }
+  .save-btn {
+    background: var(--c);
+    color: #040d0f;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-weight: 900;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .save-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .save-btn:not(:disabled):hover { opacity: 0.85; }
+  .save-btn:not(:disabled):active { transform: scale(0.97); }
+
+  .saved-msg {
+    margin-top: 16px;
+    padding: 14px;
+    background: rgba(0,245,196,0.08);
+    border: 1px solid rgba(0,245,196,0.2);
+    border-radius: 10px;
+    font-size: 15px;
+  }
+  .saved-msg strong { color: var(--c); font-size: 18px; }
+
+  /* BUTTONS */
+  .btn-row { display:flex; gap:10px; margin-top:20px; }
+  .btn-primary {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: transparent;
+    border: 2px solid var(--c);
+    border-radius: 12px;
+    color: var(--c);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px rgba(0,245,196,0.15), inset 0 0 20px rgba(0,245,196,0.03);
+    transition: box-shadow 0.2s, background 0.2s;
+  }
+  .btn-primary:hover { box-shadow: 0 0 40px rgba(0,245,196,0.35), inset 0 0 30px rgba(0,245,196,0.06); background: rgba(0,245,196,0.05); }
+  .btn-primary.stop { border-color: var(--cr); color: var(--cr); box-shadow: 0 0 20px rgba(255,64,96,0.15); }
+  .btn-primary.stop:hover { box-shadow: 0 0 40px rgba(255,64,96,0.35); background: rgba(255,64,96,0.05); }
+  .btn-sm {
+    flex: 1;
+    padding: 10px;
+    background: rgba(0,245,196,0.05);
+    border: 1px solid rgba(0,245,196,0.2);
+    border-radius: 10px;
+    color: var(--c);
+    font-size: 13px;
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-sm:hover { background: rgba(0,245,196,0.1); }
+
+  /* RANKING BUTTON */
+  #rankingBtn {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: rgba(0,245,196,0.07);
+    border: 1px solid rgba(0,245,196,0.25);
+    border-radius: 8px;
+    padding: 7px 14px;
+    color: var(--c);
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    transition: background 0.2s;
+  }
+  #rankingBtn:hover { background: rgba(0,245,196,0.12); }
+
+  /* RANKING LIST */
+  .rank-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .rank-title { font-size:16px; font-weight:700; color:var(--c); letter-spacing:2px; }
+  .rank-list { max-height:380px; overflow-y:auto; }
+  .rank-list::-webkit-scrollbar { width:4px; }
+  .rank-list::-webkit-scrollbar-track { background:transparent; }
+  .rank-list::-webkit-scrollbar-thumb { background:rgba(0,245,196,0.2); border-radius:2px; }
+  .rank-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,245,196,0.06);
+    background: rgba(0,245,196,0.02);
+  }
+  .rank-item.top3 { background: rgba(0,245,196,0.07); border-color: rgba(0,245,196,0.15); }
+  .rank-left { display:flex; align-items:center; gap:10px; }
+  .rank-medal { font-size:20px; min-width:28px; }
+  .rank-name { font-weight:700; font-size:14px; }
+  .rank-date { font-size:11px; color:rgba(200,240,234,0.3); margin-top:2px; }
+  .rank-right { text-align:right; }
+  .rank-time { font-family:'Share Tech Mono',monospace; font-weight:700; font-size:15px; }
+  .rank-err { font-size:11px; margin-top:2px; }
+  .rank-empty { color:rgba(200,240,234,0.3); text-align:center; padding:32px; font-size:14px; }
+
+  .footer { margin-top:20px; font-size:11px; color:rgba(200,240,234,0.15); letter-spacing:1px; }
+</style>
+</head>
+<body>
+
+<h1>STOP THE CLOCK</h1>
+<div class="subtitle">5秒ぴったり チャレンジ</div>
+
+<button id="rankingBtn" onclick="showRanking()">🏅 RANKING</button>
+
+<div class="card">
+
+  <!-- IDLE -->
+  <div class="screen active" id="screen-idle">
+    <div class="icon">⏱</div>
+    <p class="desc">タイマーをスタートして<br><strong>5.00000秒</strong> ぴったりで止めよう！</p>
+    <button class="btn-primary" onclick="startGame()">START / SPACE</button>
+  </div>
+
+  <!-- COUNTDOWN -->
+  <div class="screen" id="screen-countdown">
+    <div class="countdown-label">準備して…</div>
+    <div class="countdown-num" id="countNum">3</div>
+  </div>
+
+  <!-- RUNNING -->
+  <div class="screen" id="screen-running">
+    <div class="run-label">▶ RUNNING</div>
+    <span id="timerDisplay">0.00000</span>
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div id="progressFill"></div>
+        <div class="target-marker"></div>
+      </div>
+      <div class="target-label">5.00000</div>
+    </div>
+    <br>
+    <button class="btn-primary stop" onclick="stopGame()">STOP / SPACE</button>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="screen-result">
+    <div class="result-emoji" id="resEmoji"></div>
+    <div class="result-grade" id="resGrade"></div>
+    <div class="result-time" id="resTime"></div>
+    <div class="result-diff" id="resDiff"></div>
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div id="resultFill"></div>
+        <div class="target-marker"></div>
+      </div>
+    </div>
+    <div id="saveArea" class="save-form">
+      <div class="save-label">RANKING に登録する</div>
+      <div class="save-row">
+        <input class="save-input" id="nameInput" placeholder="ニックネーム" maxlength="16" onkeydown="if(event.key==='Enter')saveScore()">
+        <button class="save-btn" id="saveBtn" onclick="saveScore()">登録</button>
+      </div>
+    </div>
+    <div id="savedMsg" class="saved-msg" style="display:none"></div>
+    <div class="btn-row">
+      <button class="btn-sm" onclick="startGame()">もう一度</button>
+      <button class="btn-sm" onclick="showRanking()">ランキング</button>
+    </div>
+  </div>
+
+  <!-- RANKING -->
+  <div class="screen" id="screen-ranking">
+    <div class="rank-header">
+      <div class="rank-title">🏅 全国ランキング TOP 20</div>
+      <button class="btn-sm" style="flex:0;padding:8px 14px" onclick="showScreen('idle')">戻る</button>
+    </div>
+    <div class="rank-list" id="rankList"></div>
+  </div>
+
+</div>
+
+<div class="footer">ランキングはこのページを開いているユーザー全員で共有されます</div>
+
+<script>
+// ── Web Worker (Blob URL) ────────────────────────────────────
+const WORKER_SRC = `
+let startTime = null;
+self.onmessage = function(e) {
+  var d = e.data;
+  if (d.cmd === 'start') {
+    startTime = d.startTime;
+  } else if (d.cmd === 'stop') {
+    var t = performance.now();
+    self.postMessage({ type: 'stopped', elapsed: (t - startTime) / 1000 });
+  } else if (d.cmd === 'tick') {
+    if (startTime !== null) {
+      self.postMessage({ type: 'tick', elapsed: (performance.now() - startTime) / 1000 });
+    }
+  }
+};
+`;
+const workerBlob = new Blob([WORKER_SRC], { type: 'application/javascript' });
+const workerURL  = URL.createObjectURL(workerBlob);
+
+// ── State ────────────────────────────────────────────────────
+let phase    = 'idle';
+let worker   = null;
+let rafId    = null;
+let stopped  = null;
+let rankings = [];
+
+// ── Storage (shared) ────────────────────────────────────────
+async function loadRankings() {
+  try {
+    const r = await window.storage.get('rankings', true);
+    return r ? JSON.parse(r.value) : [];
+  } catch { return []; }
+}
+async function saveRankings(list) {
+  try { await window.storage.set('rankings', JSON.stringify(list), true); } catch {}
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+function fmt(t)  { return t.toFixed(5); }
+function fdiff(t){ return Math.abs(t - 5.0); }
+function grade(d) {
+  if (d < 0.005) return { label:'神業！',  color:'#ffd000', emoji:'👑' };
+  if (d < 0.02)  return { label:'完璧！',  color:'#00f5c4', emoji:'🏆' };
+  if (d < 0.05)  return { label:'すごい！',color:'#00BFFF', emoji:'🌟' };
+  if (d < 0.1)   return { label:'惜しい！',color:'#FF9F00', emoji:'🔥' };
+  if (d < 0.3)   return { label:'もう少し',color:'#ff4060', emoji:'😅' };
+  return           { label:'練習あるのみ', color:'#888',    emoji:'💪' };
+}
+
+// ── Screen control ───────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('rankingBtn').style.display = name === 'ranking' ? 'none' : '';
+}
+
+// ── Display tick (rAF → worker tick) ────────────────────────
+function startDisplayTick() {
+  function loop() {
+    if (phase !== 'running') return;
+    worker && worker.postMessage({ cmd: 'tick' });
+    rafId = requestAnimationFrame(loop);
+  }
+  rafId = requestAnimationFrame(loop);
+}
+function stopDisplayTick() { cancelAnimationFrame(rafId); }
+
+function updateDisplay(elapsed) {
+  const el = document.getElementById('timerDisplay');
+  const fill = document.getElementById('progressFill');
+  el.textContent = fmt(elapsed);
+  el.className = elapsed > 5 ? 'over' : '';
+  fill.style.width = Math.min((elapsed / 10) * 100, 100) + '%';
+  fill.className = elapsed > 5 ? 'over' : '';
+}
+
+// ── Game flow ────────────────────────────────────────────────
+function startGame() {
+  stopDisplayTick();
+  if (worker) { worker.terminate(); worker = null; }
+  phase = 'countdown';
+  showScreen('countdown');
+
+  let c = 3;
+  document.getElementById('countNum').textContent = c;
+
+  const iv = setInterval(() => {
+    c--;
+    if (c <= 0) {
+      clearInterval(iv);
+
+      // create worker
+      worker = new Worker(workerURL);
+      worker.onmessage = function(e) {
+        const { type, elapsed } = e.data;
+        if (type === 'tick') {
+          updateDisplay(elapsed);
+        } else if (type === 'stopped') {
+          onStopped(elapsed);
+        }
+      };
+
+      // send startTime from main thread
+      const st = performance.now();
+      worker.postMessage({ cmd: 'start', startTime: st });
+
+      phase = 'running';
+      updateDisplay(0);
+      showScreen('running');
+      startDisplayTick();
+    } else {
+      const el = document.getElementById('countNum');
+      el.textContent = c;
+      // restart animation
+      el.style.animation = 'none';
+      el.offsetHeight; // reflow
+      el.style.animation = 'popIn 0.35s cubic-bezier(0.17,0.89,0.32,1.28)';
+    }
+  }, 1000);
+}
+
+function stopGame() {
+  if (phase !== 'running') return;
+  phase = 'stopping';
+  stopDisplayTick();
+  worker && worker.postMessage({ cmd: 'stop' });
+}
+
+function onStopped(elapsed) {
+  stopped = elapsed;
+  phase = 'result';
+
+  const d = fdiff(elapsed);
+  const g = grade(d);
+
+  document.getElementById('resEmoji').textContent  = g.emoji;
+  document.getElementById('resGrade').textContent  = g.label;
+  document.getElementById('resGrade').style.color  = g.color;
+  document.getElementById('resTime').textContent   = fmt(elapsed);
+  document.getElementById('resTime').style.color   = g.color;
+  document.getElementById('resDiff').innerHTML     =
+    `目標との誤差：<span style="color:${g.color};font-weight:700">±${d.toFixed(5)}秒</span>`;
+
+  const pct = Math.min((elapsed / 10) * 100, 100);
+  const rf  = document.getElementById('resultFill');
+  rf.style.width      = pct + '%';
+  rf.style.background = d < 0.05
+    ? 'linear-gradient(90deg,#00f5c4,#00BFFF)'
+    : 'linear-gradient(90deg,#ff4060,#FF9F00)';
+
+  document.getElementById('nameInput').value = '';
+  document.getElementById('saveBtn').disabled = false;
+  document.getElementById('saveArea').style.display = '';
+  document.getElementById('savedMsg').style.display = 'none';
+
+  showScreen('result');
+}
+
+async function saveScore() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) return;
+  document.getElementById('saveBtn').disabled = true;
+
+  const fresh = await loadRankings();
+  const entry = { name, time: stopped, diff: fdiff(stopped), date: new Date().toLocaleDateString('ja-JP') };
+  const updated = [...fresh, entry].sort((a,b) => a.diff - b.diff).slice(0, 100);
+  await saveRankings(updated);
+  rankings = updated;
+
+  const pos = updated.findIndex(e => e.name === entry.name && Math.abs(e.time - entry.time) < 0.000001) + 1;
+  document.getElementById('saveArea').style.display = 'none';
+  const msg = document.getElementById('savedMsg');
+  msg.style.display = '';
+  msg.innerHTML = `🎉 <strong style="color:var(--c)">第 ${pos} 位</strong> で登録しました！`;
+}
+
+async function showRanking() {
+  rankings = await loadRankings();
+  const list = document.getElementById('rankList');
+  if (rankings.length === 0) {
+    list.innerHTML = '<div class="rank-empty">まだ登録者がいません</div>';
+  } else {
+    list.innerHTML = rankings.slice(0, 20).map((r, i) => {
+      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
+      const g = grade(r.diff);
+      return `<div class="rank-item ${i<3?'top3':''}">
+        <div class="rank-left">
+          <span class="rank-medal">${medal}</span>
+          <div>
+            <div class="rank-name">${r.name}</div>
+            <div class="rank-date">${r.date}</div>
+          </div>
+        </div>
+        <div class="rank-right">
+          <div class="rank-time">${fmt(r.time)}</div>
+          <div class="rank-err" style="color:${g.color}">±${r.diff.toFixed(5)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  showScreen('ranking');
+}
+
+// ── Keyboard ────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (phase === 'running') stopGame();
+    else if (phase === 'idle') startGame();
+  }
+});
+
+// ── Init ────────────────────────────────────────────────────
+loadRankings().then(r => { rankings = r; });
+</script>
+</body>
+</html>
