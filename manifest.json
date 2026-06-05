@@ -1,0 +1,25 @@
+{
+  "name": "5秒ぴったり STOP THE CLOCK",
+  "short_name": "秒ぼたん",
+  "description": "5秒ぴったりでタイマーを止めるゲーム",
+  "start_url": "./five-second-game.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#040d0f",
+  "theme_color": "#00f5c4",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
